@@ -54,6 +54,7 @@ class ExpenseCreate(BaseModel):
     amount: float
     description: Optional[str] = ""
     expense_date: Optional[str] = ""
+    paid_by: Optional[str] = ""
 
 class Expense(BaseModel):
     id: str
@@ -61,6 +62,21 @@ class Expense(BaseModel):
     amount: float
     description: Optional[str] = ""
     expense_date: Optional[str] = ""
+    paid_by: Optional[str] = ""
+    created_at: datetime
+
+class PersonCreate(BaseModel):
+    name: str
+    relation: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+
+class Person(BaseModel):
+    id: str
+    name: str
+    relation: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
     created_at: datetime
 
 class TaskCreate(BaseModel):
@@ -107,7 +123,18 @@ def expense_helper(expense) -> dict:
         "amount": expense["amount"],
         "description": expense.get("description", ""),
         "expense_date": expense.get("expense_date", ""),
+        "paid_by": expense.get("paid_by", ""),
         "created_at": expense["created_at"]
+    }
+
+def person_helper(person) -> dict:
+    return {
+        "id": str(person["_id"]),
+        "name": person["name"],
+        "relation": person.get("relation", ""),
+        "phone": person.get("phone", ""),
+        "email": person.get("email", ""),
+        "created_at": person["created_at"]
     }
 
 def task_helper(task) -> dict:
@@ -369,6 +396,55 @@ async def get_task_categories():
             "Transportation"
         ]
     }
+
+# Person/Family Member Routes
+@api_router.get("/persons", response_model=List[Person])
+async def get_persons():
+    persons = await db.persons.find().sort("created_at", 1).to_list(1000)
+    return [person_helper(person) for person in persons]
+
+@api_router.post("/persons", response_model=Person)
+async def create_person(person: PersonCreate):
+    person_dict = person.dict()
+    person_dict["created_at"] = datetime.utcnow()
+    
+    result = await db.persons.insert_one(person_dict)
+    created_person = await db.persons.find_one({"_id": result.inserted_id})
+    
+    return person_helper(created_person)
+
+@api_router.put("/persons/{person_id}", response_model=Person)
+async def update_person(person_id: str, person: PersonCreate):
+    try:
+        obj_id = ObjectId(person_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+    
+    person_dict = person.dict()
+    result = await db.persons.update_one(
+        {"_id": obj_id},
+        {"$set": person_dict}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    updated_person = await db.persons.find_one({"_id": obj_id})
+    return person_helper(updated_person)
+
+@api_router.delete("/persons/{person_id}")
+async def delete_person(person_id: str):
+    try:
+        obj_id = ObjectId(person_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+    
+    result = await db.persons.delete_one({"_id": obj_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    return {"message": "Person deleted successfully"}
 
 # Include the router in the main app
 app.include_router(api_router)
