@@ -39,20 +39,27 @@ export default function FamilyScreen() {
   });
 
   useEffect(() => {
-    fetchPersons();
+    fetchPersons(true); // Initial load with loading spinner
+
+    // Auto-refresh every 5 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchPersons(false); // Background refresh without loading spinner
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchPersons = async () => {
+  const fetchPersons = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${BACKEND_URL}/api/persons`);
       const data = await response.json();
       setPersons(data);
     } catch (error) {
       console.error('Error fetching persons:', error);
-      Alert.alert('Error', 'Failed to load family members');
+      if (showLoading) Alert.alert('Error', 'Failed to load family members');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 

@@ -67,10 +67,21 @@ export default function BudgetScreen() {
   const [selectingFor, setSelectingFor] = useState<'expense' | 'budget'>('expense');
 
   useEffect(() => {
-    fetchBudgets();
+    fetchBudgets(true); // Initial load with loading spinner
     fetchCategories();
     fetchPersons();
-  }, []);
+
+    // Auto-refresh every 3 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchBudgets(false); // Background refresh without loading spinner
+      // Re-fetch expenses for expanded items
+      expandedItems.forEach(itemId => {
+        fetchExpenses(itemId);
+      });
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [expandedItems]);
 
   const fetchPersons = async () => {
     try {
@@ -92,17 +103,17 @@ export default function BudgetScreen() {
     }
   };
 
-  const fetchBudgets = async () => {
+  const fetchBudgets = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${BACKEND_URL}/api/budgets`);
       const data = await response.json();
       setBudgetData(data);
     } catch (error) {
       console.error('Error fetching budgets:', error);
-      Alert.alert('Error', 'Failed to load budget data');
+      if (showLoading) Alert.alert('Error', 'Failed to load budget data');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 

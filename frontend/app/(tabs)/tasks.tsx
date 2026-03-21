@@ -53,9 +53,16 @@ export default function TasksScreen() {
   });
 
   useEffect(() => {
-    fetchTasks();
+    fetchTasks(true); // Initial load with loading spinner
     fetchTaskCategories();
     fetchPersons();
+
+    // Auto-refresh every 3 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchTasks(false); // Background refresh without loading spinner
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const fetchPersons = async () => {
@@ -78,17 +85,17 @@ export default function TasksScreen() {
     }
   };
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${BACKEND_URL}/api/tasks`);
       const data = await response.json();
       setTaskData(data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      Alert.alert('Error', 'Failed to load tasks');
+      if (showLoading) Alert.alert('Error', 'Failed to load tasks');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
