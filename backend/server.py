@@ -264,6 +264,26 @@ async def create_expense(budget_id: str, expense: ExpenseCreate):
     
     return expense_helper(created_expense)
 
+@api_router.put("/expenses/{expense_id}", response_model=Expense)
+async def update_expense(expense_id: str, expense: ExpenseCreate):
+    try:
+        obj_id = ObjectId(expense_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid expense ID")
+    
+    expense_dict = expense.dict()
+    
+    result = await db.expenses.update_one(
+        {"_id": obj_id},
+        {"$set": expense_dict}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    updated_expense = await db.expenses.find_one({"_id": obj_id})
+    return expense_helper(updated_expense)
+
 @api_router.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: str):
     try:

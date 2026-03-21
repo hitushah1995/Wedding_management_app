@@ -54,6 +54,7 @@ export default function BudgetScreen() {
   const [expenses, setExpenses] = useState<{[key: string]: Expense[]}>({});
   const [persons, setPersons] = useState<Person[]>([]);
   const [currentBudgetItem, setCurrentBudgetItem] = useState<BudgetItem | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   
   const [formData, setFormData] = useState({
     category: '', subcategory: '', budgeted_amount: '', notes: '', is_custom: false,
@@ -160,31 +161,35 @@ export default function BudgetScreen() {
     }
 
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/api/budgets/${currentBudgetItem.id}/expenses`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: parseFloat(expenseForm.amount) || 0,
-            description: expenseForm.description,
-            expense_date: expenseForm.expense_date,
-            paid_by: expenseForm.paid_by,
-          }),
-        }
-      );
+      const url = editingExpense
+        ? `${BACKEND_URL}/api/expenses/${editingExpense.id}`
+        : `${BACKEND_URL}/api/budgets/${currentBudgetItem.id}/expenses`;
+      
+      const method = editingExpense ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: parseFloat(expenseForm.amount) || 0,
+          description: expenseForm.description,
+          expense_date: expenseForm.expense_date,
+          paid_by: expenseForm.paid_by,
+        }),
+      });
 
       if (response.ok) {
         setExpenseModalVisible(false);
         resetExpenseForm();
+        setEditingExpense(null);
         fetchBudgets();
         fetchExpenses(currentBudgetItem.id);
       } else {
-        Alert.alert('Error', 'Failed to add expense');
+        Alert.alert('Error', `Failed to ${editingExpense ? 'update' : 'add'} expense`);
       }
     } catch (error) {
-      console.error('Error adding expense:', error);
-      Alert.alert('Error', 'Failed to add expense');
+      console.error('Error saving expense:', error);
+      Alert.alert('Error', `Failed to ${editingExpense ? 'update' : 'add'} expense`);
     }
   };
 
@@ -261,7 +266,20 @@ export default function BudgetScreen() {
 
   const openExpenseModal = (item: BudgetItem) => {
     setCurrentBudgetItem(item);
+    setEditingExpense(null);
     resetExpenseForm();
+    setExpenseModalVisible(true);
+  };
+
+  const openEditExpenseModal = (expense: Expense, item: BudgetItem) => {
+    setCurrentBudgetItem(item);
+    setEditingExpense(expense);
+    setExpenseForm({
+      amount: expense.amount.toString(),
+      description: expense.description,
+      expense_date: expense.expense_date,
+      paid_by: expense.paid_by,
+    });
     setExpenseModalVisible(true);
   };
 
@@ -475,9 +493,14 @@ export default function BudgetScreen() {
                                       ) : null}
                                     </View>
                                   </View>
-                                  <TouchableOpacity onPress={() => handleDeleteExpense(expense.id, item.id)}>
-                                    <Ionicons name="trash" size={16} color="#FF6B6B" />
-                                  </TouchableOpacity>
+                                  <View style={styles.expenseActions}>
+                                    <TouchableOpacity onPress={() => openEditExpenseModal(expense, item)}>
+                                      <Ionicons name="pencil" size={16} color="#FF69B4" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleDeleteExpense(expense.id, item.id)}>
+                                      <Ionicons name="trash" size={16} color="#FF6B6B" />
+                                    </TouchableOpacity>
+                                  </View>
                                 </View>
                               ))
                             ) : (
@@ -545,7 +568,7 @@ export default function BudgetScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Expense</Text>
+              <Text style={styles.modalTitle}>{editingExpense ? 'Edit' : 'Add'} Expense</Text>
               <TouchableOpacity onPress={() => setExpenseModalVisible(false)}>
                 <Ionicons name="close" size={28} color="#FF69B4" />
               </TouchableOpacity>
@@ -576,7 +599,7 @@ export default function BudgetScreen() {
                 <Ionicons name="chevron-down" size={20} color="#FF69B4" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitButton} onPress={handleExpenseSubmit}>
-                <Text style={styles.submitButtonText}>Add Expense</Text>
+                <Text style={styles.submitButtonText}>{editingExpense ? 'Update' : 'Add'} Expense</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -689,6 +712,7 @@ const styles = StyleSheet.create({
   expenseItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#FFE4E1' },
   expenseInfo: { flex: 1 },
+  expenseActions: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   expenseAmount: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 2 },
   expenseDesc: { fontSize: 13, color: '#666', marginBottom: 4 },
   expenseMeta: { flexDirection: 'row', gap: 12 },
