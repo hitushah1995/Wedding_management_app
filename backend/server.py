@@ -29,6 +29,7 @@ api_router = APIRouter(prefix="/api")
 # Define Models
 class BudgetItemCreate(BaseModel):
     category: str
+    subcategory: Optional[str] = ""
     budgeted_amount: float
     spent_amount: float = 0.0
     notes: Optional[str] = ""
@@ -37,6 +38,7 @@ class BudgetItemCreate(BaseModel):
 class BudgetItem(BaseModel):
     id: str
     category: str
+    subcategory: Optional[str] = ""
     budgeted_amount: float
     spent_amount: float
     notes: Optional[str] = ""
@@ -74,6 +76,7 @@ def budget_helper(budget) -> dict:
     return {
         "id": str(budget["_id"]),
         "category": budget["category"],
+        "subcategory": budget.get("subcategory", ""),
         "budgeted_amount": budget["budgeted_amount"],
         "spent_amount": budget["spent_amount"],
         "notes": budget.get("notes", ""),

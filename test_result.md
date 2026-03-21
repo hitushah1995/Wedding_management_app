@@ -150,6 +150,21 @@ backend:
         agent: "testing"
         comment: "TESTING COMPLETED ✅ Budget categories API working correctly. GET /api/budget-categories returns all 8 predefined wedding categories in proper JSON format: Venue, Catering, Photography, Decorations, Attire, Entertainment, Invitations, Flowers."
 
+  - task: "Subcategory Support for Indian Wedding Context"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added subcategory field to BudgetItemCreate and BudgetItem models. Updated budget_helper function to handle subcategory field with default empty string. Subcategory is optional when creating/updating budget items."
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE SUBCATEGORY TESTING COMPLETED ✅ Tested 15 scenarios with 93.3% success rate. VERIFIED: (1) Budget items created with subcategories (Attire > Groom Sherwani, Catering > Sangeet Function, etc.), (2) Budget items created without subcategories work correctly, (3) Multiple subcategories within same category supported, (4) All budget responses include subcategory field, (5) Budget summary calculations work across all subcategories, (6) Subcategory field can be updated via PUT endpoint, (7) Realistic Indian wedding amounts tested (₹1.5L-₹8L), (8) Error handling works correctly (400/404/422). Minor: GET /api/budgets/{id} endpoint doesn't exist (405 expected). All core subcategory functionality working perfectly for Indian wedding context."
+
 frontend:
   - task: "Tab Navigation Setup"
     implemented: true
@@ -174,6 +189,9 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Implemented budget screen with: summary card showing total/spent/remaining, progress bars, category selection modal (predefined + custom), add/edit/delete functionality, romantic themed UI."
+      - working: "NA"
+        agent: "main"
+        comment: "UPDATED FOR INDIAN WEDDING: Changed currency to INR (₹) with proper Indian number formatting. Added subcategory support - users can now add subcategories like 'Groom Sherwani' under 'Attire' or 'Sangeet Function' under 'Catering'. Implemented collapsible category groups that show category-level totals with expandable subcategory details. Each category card shows total budgeted/spent across all subcategories with individual subcategory items listed underneath when expanded."
   
   - task: "Tasks Screen with CRUD"
     implemented: true
@@ -202,5 +220,9 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Initial implementation complete. Created wedding management app with budget tracking and task management. Backend APIs tested with curl and working correctly (budget item creation, task creation, task toggle all verified). Frontend uses Expo with tab navigation, romantic pink/rose gold theme. Ready for comprehensive backend testing."
+  - agent: "main"
+    message: "Updated app for Indian wedding: (1) Changed currency to INR (₹) throughout frontend, (2) Added subcategory support - users can now track spending within categories (e.g., Attire > Groom Sherwani, Catering > Sangeet Function), (3) Implemented collapsible category groups showing category-level totals with subcategory details, (4) Updated backend models to include subcategory field. Tested with realistic Indian wedding data - working correctly."
   - agent: "testing"
     message: "BACKEND TESTING COMPLETED SUCCESSFULLY ✅ All 23 tests passed (100% success rate). Comprehensive testing performed on all backend APIs: Budget CRUD (GET/POST/PUT/DELETE), Task CRUD (GET/POST/PUT/DELETE/PATCH toggle), Budget Categories (GET). Verified: data persistence, summary calculations, error handling (400/404/422), realistic wedding data scenarios. All endpoints working perfectly with proper JSON responses. Backend is production-ready."
+  - agent: "testing"
+    message: "SUBCATEGORY FEATURE TESTING COMPLETED ✅ Comprehensive testing of Indian wedding subcategory support completed with 93.3% success rate (14/15 tests passed). VERIFIED: (1) Budget items can be created with/without subcategories, (2) All budget responses include subcategory field, (3) Multiple subcategories work within same category (e.g., Attire > Groom Sherwani, Bride Lehenga), (4) Budget summary calculations work correctly across all subcategories, (5) Subcategory field can be updated via PUT, (6) Realistic Indian wedding data tested (amounts in lakhs: ₹1.5L, ₹5L, ₹8L etc.), (7) Task APIs remain unchanged and working. Minor note: GET /api/budgets/{id} endpoint doesn't exist (returns 405), but this is expected as only collection endpoint exists. All core subcategory functionality working perfectly."

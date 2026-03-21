@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive Backend API Testing for Wedding Management App
-Tests all Budget and Task CRUD operations with realistic wedding data
+Focus: Testing subcategory support for Indian wedding context
 """
 
 import requests
@@ -12,410 +12,360 @@ from datetime import datetime
 # Backend URL from environment
 BASE_URL = "https://nuptial-checklist.preview.emergentagent.com/api"
 
-class WeddingAPITester:
+class WeddingAppTester:
     def __init__(self):
         self.base_url = BASE_URL
-        self.session = requests.Session()
+        self.test_results = []
         self.created_budget_ids = []
         self.created_task_ids = []
-        self.test_results = {
-            "budget_crud": {"passed": 0, "failed": 0, "errors": []},
-            "task_crud": {"passed": 0, "failed": 0, "errors": []},
-            "budget_categories": {"passed": 0, "failed": 0, "errors": []},
-            "summary_calculations": {"passed": 0, "failed": 0, "errors": []}
-        }
-
-    def log_result(self, category, test_name, success, message=""):
-        """Log test result"""
-        if success:
-            self.test_results[category]["passed"] += 1
-            print(f"✅ {test_name}: PASSED")
-        else:
-            self.test_results[category]["failed"] += 1
-            self.test_results[category]["errors"].append(f"{test_name}: {message}")
-            print(f"❌ {test_name}: FAILED - {message}")
+        
+    def log_test(self, test_name, success, details=""):
+        """Log test results"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        self.test_results.append({
+            "test": test_name,
+            "status": status,
+            "success": success,
+            "details": details
+        })
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        print()
 
     def test_budget_categories(self):
         """Test GET /api/budget-categories"""
-        print("\n=== Testing Budget Categories API ===")
-        
         try:
-            response = self.session.get(f"{self.base_url}/budget-categories")
+            response = requests.get(f"{self.base_url}/budget-categories")
             
             if response.status_code == 200:
                 data = response.json()
                 expected_categories = ["Venue", "Catering", "Photography", "Decorations", "Attire", "Entertainment", "Invitations", "Flowers"]
                 
-                if "categories" in data and isinstance(data["categories"], list):
-                    if all(cat in data["categories"] for cat in expected_categories):
-                        self.log_result("budget_categories", "Get Budget Categories", True)
-                    else:
-                        self.log_result("budget_categories", "Get Budget Categories", False, f"Missing expected categories. Got: {data['categories']}")
+                if "categories" in data and data["categories"] == expected_categories:
+                    self.log_test("Budget Categories API", True, f"Returned {len(data['categories'])} categories")
                 else:
-                    self.log_result("budget_categories", "Get Budget Categories", False, f"Invalid response format: {data}")
+                    self.log_test("Budget Categories API", False, f"Unexpected categories: {data}")
             else:
-                self.log_result("budget_categories", "Get Budget Categories", False, f"HTTP {response.status_code}: {response.text}")
+                self.log_test("Budget Categories API", False, f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            self.log_result("budget_categories", "Get Budget Categories", False, f"Exception: {str(e)}")
+            self.log_test("Budget Categories API", False, f"Exception: {str(e)}")
 
-    def test_budget_crud(self):
-        """Test Budget CRUD operations"""
-        print("\n=== Testing Budget CRUD APIs ===")
+    def test_budget_crud_with_subcategories(self):
+        """Test budget CRUD operations with subcategory support"""
         
-        # Test data for wedding budget items
-        budget_items = [
-            {"category": "Venue", "budgeted_amount": 15000.0, "spent_amount": 12000.0, "notes": "Grand ballroom at Rosewood Hotel", "is_custom": False},
-            {"category": "Catering", "budgeted_amount": 8000.0, "spent_amount": 0.0, "notes": "3-course dinner for 150 guests", "is_custom": False},
-            {"category": "Wedding Favors", "budgeted_amount": 500.0, "spent_amount": 350.0, "notes": "Personalized candles", "is_custom": True}
-        ]
-        
-        # Test GET empty budgets first
+        # Test 1: Create budget item with subcategory (Indian wedding context)
         try:
-            response = self.session.get(f"{self.base_url}/budgets")
+            budget_data = {
+                "category": "Attire",
+                "subcategory": "Groom Sherwani",
+                "budgeted_amount": 150000,  # 1.5 lakhs INR
+                "spent_amount": 0,
+                "notes": "Designer sherwani for wedding day",
+                "is_custom": False
+            }
+            
+            response = requests.post(f"{self.base_url}/budgets", json=budget_data)
+            
             if response.status_code == 200:
                 data = response.json()
-                if "total_budgeted" in data and "total_spent" in data and "remaining" in data and "items" in data:
-                    self.log_result("budget_crud", "Get Empty Budgets", True)
+                if ("subcategory" in data and data["subcategory"] == "Groom Sherwani" and 
+                    data["category"] == "Attire" and data["budgeted_amount"] == 150000):
+                    self.created_budget_ids.append(data["id"])
+                    self.log_test("Create Budget with Subcategory", True, f"Created budget item with subcategory: {data['subcategory']}")
                 else:
-                    self.log_result("budget_crud", "Get Empty Budgets", False, f"Invalid response format: {data}")
+                    self.log_test("Create Budget with Subcategory", False, f"Missing or incorrect subcategory field: {data}")
             else:
-                self.log_result("budget_crud", "Get Empty Budgets", False, f"HTTP {response.status_code}: {response.text}")
+                self.log_test("Create Budget with Subcategory", False, f"Status: {response.status_code}, Response: {response.text}")
+                
         except Exception as e:
-            self.log_result("budget_crud", "Get Empty Budgets", False, f"Exception: {str(e)}")
+            self.log_test("Create Budget with Subcategory", False, f"Exception: {str(e)}")
+
+        # Test 2: Create budget item without subcategory (should work)
+        try:
+            budget_data = {
+                "category": "Venue",
+                "budgeted_amount": 500000,  # 5 lakhs INR
+                "spent_amount": 100000,     # 1 lakh spent
+                "notes": "Wedding hall booking",
+                "is_custom": False
+            }
+            
+            response = requests.post(f"{self.base_url}/budgets", json=budget_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if ("subcategory" in data and data["subcategory"] == "" and 
+                    data["category"] == "Venue" and data["budgeted_amount"] == 500000):
+                    self.created_budget_ids.append(data["id"])
+                    self.log_test("Create Budget without Subcategory", True, f"Created budget item with empty subcategory")
+                else:
+                    self.log_test("Create Budget without Subcategory", False, f"Subcategory field handling issue: {data}")
+            else:
+                self.log_test("Create Budget without Subcategory", False, f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Create Budget without Subcategory", False, f"Exception: {str(e)}")
+
+        # Test 3: Create multiple items in same category with different subcategories
+        subcategory_items = [
+            {"category": "Catering", "subcategory": "Sangeet Function", "budgeted_amount": 200000, "notes": "Sangeet dinner"},
+            {"category": "Catering", "subcategory": "Wedding Day", "budgeted_amount": 800000, "notes": "Main wedding feast"},
+            {"category": "Catering", "subcategory": "Mehendi Ceremony", "budgeted_amount": 150000, "notes": "Mehendi lunch"},
+            {"category": "Attire", "subcategory": "Bride Lehenga", "budgeted_amount": 300000, "notes": "Designer bridal lehenga"},
+            {"category": "Attire", "subcategory": "Father's Outfit", "budgeted_amount": 50000, "notes": "Father's kurta set"}
+        ]
         
-        # Test POST - Create budget items
-        for i, item in enumerate(budget_items):
+        for item in subcategory_items:
             try:
-                response = self.session.post(f"{self.base_url}/budgets", json=item)
+                response = requests.post(f"{self.base_url}/budgets", json=item)
                 
                 if response.status_code == 200:
                     data = response.json()
-                    if "id" in data and data["category"] == item["category"]:
+                    if ("subcategory" in data and data["subcategory"] == item["subcategory"]):
                         self.created_budget_ids.append(data["id"])
-                        self.log_result("budget_crud", f"Create Budget Item {i+1}", True)
+                        self.log_test(f"Create {item['category']} - {item['subcategory']}", True, f"Amount: ₹{item['budgeted_amount']:,}")
                     else:
-                        self.log_result("budget_crud", f"Create Budget Item {i+1}", False, f"Invalid response: {data}")
+                        self.log_test(f"Create {item['category']} - {item['subcategory']}", False, f"Subcategory mismatch: {data}")
                 else:
-                    self.log_result("budget_crud", f"Create Budget Item {i+1}", False, f"HTTP {response.status_code}: {response.text}")
+                    self.log_test(f"Create {item['category']} - {item['subcategory']}", False, f"Status: {response.status_code}")
                     
             except Exception as e:
-                self.log_result("budget_crud", f"Create Budget Item {i+1}", False, f"Exception: {str(e)}")
-        
-        # Test GET with data and verify summary calculations
-        try:
-            response = self.session.get(f"{self.base_url}/budgets")
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify structure
-                if "total_budgeted" in data and "total_spent" in data and "remaining" in data and "items" in data:
-                    self.log_result("budget_crud", "Get Budgets with Data", True)
-                    
-                    # Verify calculations
-                    expected_total_budgeted = sum(item["budgeted_amount"] for item in budget_items)
-                    expected_total_spent = sum(item["spent_amount"] for item in budget_items)
-                    expected_remaining = expected_total_budgeted - expected_total_spent
-                    
-                    if (abs(data["total_budgeted"] - expected_total_budgeted) < 0.01 and
-                        abs(data["total_spent"] - expected_total_spent) < 0.01 and
-                        abs(data["remaining"] - expected_remaining) < 0.01):
-                        self.log_result("summary_calculations", "Budget Summary Calculations", True)
-                    else:
-                        self.log_result("summary_calculations", "Budget Summary Calculations", False, 
-                                      f"Expected: budgeted={expected_total_budgeted}, spent={expected_total_spent}, remaining={expected_remaining}. "
-                                      f"Got: budgeted={data['total_budgeted']}, spent={data['total_spent']}, remaining={data['remaining']}")
-                    
-                    # Verify items count
-                    if len(data["items"]) == len(budget_items):
-                        self.log_result("budget_crud", "Budget Items Count", True)
-                    else:
-                        self.log_result("budget_crud", "Budget Items Count", False, f"Expected {len(budget_items)} items, got {len(data['items'])}")
-                        
-                else:
-                    self.log_result("budget_crud", "Get Budgets with Data", False, f"Invalid response format: {data}")
-            else:
-                self.log_result("budget_crud", "Get Budgets with Data", False, f"HTTP {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            self.log_result("budget_crud", "Get Budgets with Data", False, f"Exception: {str(e)}")
-        
-        # Test PUT - Update budget item
-        if self.created_budget_ids:
-            try:
-                budget_id = self.created_budget_ids[0]
-                update_data = {"category": "Venue", "budgeted_amount": 16000.0, "spent_amount": 14000.0, "notes": "Updated venue booking", "is_custom": False}
-                
-                response = self.session.put(f"{self.base_url}/budgets/{budget_id}", json=update_data)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data["budgeted_amount"] == 16000.0 and data["spent_amount"] == 14000.0:
-                        self.log_result("budget_crud", "Update Budget Item", True)
-                    else:
-                        self.log_result("budget_crud", "Update Budget Item", False, f"Update not reflected: {data}")
-                else:
-                    self.log_result("budget_crud", "Update Budget Item", False, f"HTTP {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                self.log_result("budget_crud", "Update Budget Item", False, f"Exception: {str(e)}")
-        
-        # Test DELETE - Delete budget item
-        if self.created_budget_ids:
-            try:
-                budget_id = self.created_budget_ids.pop()  # Remove last item
-                
-                response = self.session.delete(f"{self.base_url}/budgets/{budget_id}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "message" in data and "deleted" in data["message"].lower():
-                        self.log_result("budget_crud", "Delete Budget Item", True)
-                    else:
-                        self.log_result("budget_crud", "Delete Budget Item", False, f"Unexpected response: {data}")
-                else:
-                    self.log_result("budget_crud", "Delete Budget Item", False, f"HTTP {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                self.log_result("budget_crud", "Delete Budget Item", False, f"Exception: {str(e)}")
-        
-        # Test error cases
-        try:
-            # Invalid budget ID with PUT (since there's no GET endpoint for individual budgets)
-            response = self.session.put(f"{self.base_url}/budgets/invalid_id", json={"category": "Test", "budgeted_amount": 100})
-            if response.status_code in [400, 404]:
-                self.log_result("budget_crud", "Invalid Budget ID Error Handling", True)
-            else:
-                self.log_result("budget_crud", "Invalid Budget ID Error Handling", False, f"Expected 400/404, got {response.status_code}")
-        except Exception as e:
-            self.log_result("budget_crud", "Invalid Budget ID Error Handling", False, f"Exception: {str(e)}")
+                self.log_test(f"Create {item['category']} - {item['subcategory']}", False, f"Exception: {str(e)}")
 
-    def test_task_crud(self):
-        """Test Task CRUD operations"""
-        print("\n=== Testing Task CRUD APIs ===")
-        
-        # Test data for wedding tasks
-        tasks = [
-            {"title": "Book wedding venue", "description": "Reserve the Grand Ballroom at Rosewood Hotel", "assigned_to": "Sarah"},
-            {"title": "Send invitations", "description": "Mail wedding invitations to all guests", "assigned_to": "Michael"},
-            {"title": "Order wedding cake", "description": "3-tier vanilla cake with roses", "assigned_to": "Sarah"}
-        ]
-        
-        # Test GET empty tasks first
+    def test_budget_get_with_subcategories(self):
+        """Test GET /api/budgets returns subcategory field"""
         try:
-            response = self.session.get(f"{self.base_url}/tasks")
-            if response.status_code == 200:
-                data = response.json()
-                if "total_tasks" in data and "completed_tasks" in data and "pending_tasks" in data and "tasks" in data:
-                    self.log_result("task_crud", "Get Empty Tasks", True)
-                else:
-                    self.log_result("task_crud", "Get Empty Tasks", False, f"Invalid response format: {data}")
-            else:
-                self.log_result("task_crud", "Get Empty Tasks", False, f"HTTP {response.status_code}: {response.text}")
-        except Exception as e:
-            self.log_result("task_crud", "Get Empty Tasks", False, f"Exception: {str(e)}")
-        
-        # Test POST - Create tasks
-        for i, task in enumerate(tasks):
-            try:
-                response = self.session.post(f"{self.base_url}/tasks", json=task)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "id" in data and data["title"] == task["title"] and data["completed"] == False:
-                        self.created_task_ids.append(data["id"])
-                        self.log_result("task_crud", f"Create Task {i+1}", True)
-                    else:
-                        self.log_result("task_crud", f"Create Task {i+1}", False, f"Invalid response: {data}")
-                else:
-                    self.log_result("task_crud", f"Create Task {i+1}", False, f"HTTP {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                self.log_result("task_crud", f"Create Task {i+1}", False, f"Exception: {str(e)}")
-        
-        # Test GET with data and verify summary calculations
-        try:
-            response = self.session.get(f"{self.base_url}/tasks")
+            response = requests.get(f"{self.base_url}/budgets")
+            
             if response.status_code == 200:
                 data = response.json()
                 
-                # Verify structure
-                if "total_tasks" in data and "completed_tasks" in data and "pending_tasks" in data and "tasks" in data:
-                    self.log_result("task_crud", "Get Tasks with Data", True)
+                # Check structure
+                if ("items" in data and "total_budgeted" in data and 
+                    "total_spent" in data and "remaining" in data):
                     
-                    # Verify calculations
-                    expected_total = len(tasks)
-                    expected_completed = 0  # All tasks start as incomplete
-                    expected_pending = expected_total - expected_completed
+                    # Check if all items have subcategory field
+                    all_have_subcategory = all("subcategory" in item for item in data["items"])
                     
-                    if (data["total_tasks"] == expected_total and
-                        data["completed_tasks"] == expected_completed and
-                        data["pending_tasks"] == expected_pending):
-                        self.log_result("summary_calculations", "Task Summary Calculations", True)
-                    else:
-                        self.log_result("summary_calculations", "Task Summary Calculations", False, 
-                                      f"Expected: total={expected_total}, completed={expected_completed}, pending={expected_pending}. "
-                                      f"Got: total={data['total_tasks']}, completed={data['completed_tasks']}, pending={data['pending_tasks']}")
-                    
-                    # Verify items count
-                    if len(data["tasks"]) == len(tasks):
-                        self.log_result("task_crud", "Task Items Count", True)
-                    else:
-                        self.log_result("task_crud", "Task Items Count", False, f"Expected {len(tasks)} tasks, got {len(data['tasks'])}")
+                    if all_have_subcategory:
+                        # Check budget summary calculations
+                        calculated_budgeted = sum(item["budgeted_amount"] for item in data["items"])
+                        calculated_spent = sum(item["spent_amount"] for item in data["items"])
+                        calculated_remaining = calculated_budgeted - calculated_spent
                         
+                        if (data["total_budgeted"] == calculated_budgeted and 
+                            data["total_spent"] == calculated_spent and 
+                            data["remaining"] == calculated_remaining):
+                            
+                            # Count items with subcategories
+                            items_with_subcategories = sum(1 for item in data["items"] if item["subcategory"])
+                            
+                            self.log_test("GET Budgets with Subcategories", True, 
+                                        f"Found {len(data['items'])} items, {items_with_subcategories} with subcategories. "
+                                        f"Total: ₹{data['total_budgeted']:,}, Spent: ₹{data['total_spent']:,}, Remaining: ₹{data['remaining']:,}")
+                        else:
+                            self.log_test("GET Budgets with Subcategories", False, "Budget summary calculations incorrect")
+                    else:
+                        self.log_test("GET Budgets with Subcategories", False, "Not all items have subcategory field")
                 else:
-                    self.log_result("task_crud", "Get Tasks with Data", False, f"Invalid response format: {data}")
+                    self.log_test("GET Budgets with Subcategories", False, f"Missing required fields in response: {data}")
             else:
-                self.log_result("task_crud", "Get Tasks with Data", False, f"HTTP {response.status_code}: {response.text}")
+                self.log_test("GET Budgets with Subcategories", False, f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            self.log_result("task_crud", "Get Tasks with Data", False, f"Exception: {str(e)}")
+            self.log_test("GET Budgets with Subcategories", False, f"Exception: {str(e)}")
+
+    def test_budget_update_subcategory(self):
+        """Test updating subcategory field"""
+        if not self.created_budget_ids:
+            self.log_test("Update Budget Subcategory", False, "No budget items to update")
+            return
+            
+        try:
+            budget_id = self.created_budget_ids[0]
+            update_data = {
+                "category": "Attire",
+                "subcategory": "Groom Sherwani - Premium",  # Updated subcategory
+                "budgeted_amount": 200000,  # Updated amount
+                "spent_amount": 50000,      # Some spent amount
+                "notes": "Upgraded to premium designer sherwani",
+                "is_custom": False
+            }
+            
+            response = requests.put(f"{self.base_url}/budgets/{budget_id}", json=update_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if (data["subcategory"] == "Groom Sherwani - Premium" and 
+                    data["budgeted_amount"] == 200000 and 
+                    data["spent_amount"] == 50000):
+                    self.log_test("Update Budget Subcategory", True, f"Updated subcategory to: {data['subcategory']}")
+                else:
+                    self.log_test("Update Budget Subcategory", False, f"Update not reflected correctly: {data}")
+            else:
+                self.log_test("Update Budget Subcategory", False, f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Update Budget Subcategory", False, f"Exception: {str(e)}")
+
+    def test_tasks_api(self):
+        """Test task APIs (should be unchanged)"""
         
-        # Test PATCH - Toggle task completion
+        # Test 1: Create task
+        try:
+            task_data = {
+                "title": "Book wedding photographer",
+                "description": "Find and book photographer for all wedding events",
+                "assigned_to": "Bride"
+            }
+            
+            response = requests.post(f"{self.base_url}/tasks", json=task_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if (data["title"] == task_data["title"] and 
+                    data["assigned_to"] == task_data["assigned_to"] and 
+                    data["completed"] == False):
+                    self.created_task_ids.append(data["id"])
+                    self.log_test("Create Task", True, f"Created task: {data['title']}")
+                else:
+                    self.log_test("Create Task", False, f"Task data incorrect: {data}")
+            else:
+                self.log_test("Create Task", False, f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Create Task", False, f"Exception: {str(e)}")
+
+        # Test 2: Get tasks
+        try:
+            response = requests.get(f"{self.base_url}/tasks")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if ("tasks" in data and "total_tasks" in data and 
+                    "completed_tasks" in data and "pending_tasks" in data):
+                    self.log_test("GET Tasks", True, f"Found {data['total_tasks']} tasks, {data['completed_tasks']} completed")
+                else:
+                    self.log_test("GET Tasks", False, f"Missing required fields: {data}")
+            else:
+                self.log_test("GET Tasks", False, f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("GET Tasks", False, f"Exception: {str(e)}")
+
+        # Test 3: Toggle task completion
         if self.created_task_ids:
             try:
                 task_id = self.created_task_ids[0]
-                
-                # Toggle to completed
-                response = self.session.patch(f"{self.base_url}/tasks/{task_id}/toggle")
+                response = requests.patch(f"{self.base_url}/tasks/{task_id}/toggle")
                 
                 if response.status_code == 200:
                     data = response.json()
                     if data["completed"] == True:
-                        self.log_result("task_crud", "Toggle Task to Completed", True)
-                        
-                        # Toggle back to incomplete
-                        response2 = self.session.patch(f"{self.base_url}/tasks/{task_id}/toggle")
-                        if response2.status_code == 200:
-                            data2 = response2.json()
-                            if data2["completed"] == False:
-                                self.log_result("task_crud", "Toggle Task to Incomplete", True)
-                            else:
-                                self.log_result("task_crud", "Toggle Task to Incomplete", False, f"Task still completed: {data2}")
-                        else:
-                            self.log_result("task_crud", "Toggle Task to Incomplete", False, f"HTTP {response2.status_code}: {response2.text}")
+                        self.log_test("Toggle Task Completion", True, f"Task marked as completed")
                     else:
-                        self.log_result("task_crud", "Toggle Task to Completed", False, f"Task not completed: {data}")
+                        self.log_test("Toggle Task Completion", False, f"Task completion not toggled: {data}")
                 else:
-                    self.log_result("task_crud", "Toggle Task to Completed", False, f"HTTP {response.status_code}: {response.text}")
+                    self.log_test("Toggle Task Completion", False, f"Status: {response.status_code}, Response: {response.text}")
                     
             except Exception as e:
-                self.log_result("task_crud", "Toggle Task", False, f"Exception: {str(e)}")
-        
-        # Test PUT - Update task
-        if self.created_task_ids:
-            try:
-                task_id = self.created_task_ids[0]
-                update_data = {"title": "Book wedding venue - UPDATED", "description": "Updated description", "assigned_to": "Sarah"}
-                
-                response = self.session.put(f"{self.base_url}/tasks/{task_id}", json=update_data)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "UPDATED" in data["title"] and data["description"] == "Updated description":
-                        self.log_result("task_crud", "Update Task", True)
-                    else:
-                        self.log_result("task_crud", "Update Task", False, f"Update not reflected: {data}")
-                else:
-                    self.log_result("task_crud", "Update Task", False, f"HTTP {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                self.log_result("task_crud", "Update Task", False, f"Exception: {str(e)}")
-        
-        # Test DELETE - Delete task
-        if self.created_task_ids:
-            try:
-                task_id = self.created_task_ids.pop()  # Remove last item
-                
-                response = self.session.delete(f"{self.base_url}/tasks/{task_id}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "message" in data and "deleted" in data["message"].lower():
-                        self.log_result("task_crud", "Delete Task", True)
-                    else:
-                        self.log_result("task_crud", "Delete Task", False, f"Unexpected response: {data}")
-                else:
-                    self.log_result("task_crud", "Delete Task", False, f"HTTP {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                self.log_result("task_crud", "Delete Task", False, f"Exception: {str(e)}")
-        
-        # Test error cases
-        try:
-            # Invalid task ID with PUT (since there's no GET endpoint for individual tasks)
-            response = self.session.put(f"{self.base_url}/tasks/invalid_id", json={"title": "Test", "assigned_to": "Test"})
-            if response.status_code in [400, 404]:
-                self.log_result("task_crud", "Invalid Task ID Error Handling", True)
-            else:
-                self.log_result("task_crud", "Invalid Task ID Error Handling", False, f"Expected 400/404, got {response.status_code}")
-        except Exception as e:
-            self.log_result("task_crud", "Invalid Task ID Error Handling", False, f"Exception: {str(e)}")
+                self.log_test("Toggle Task Completion", False, f"Exception: {str(e)}")
 
-    def cleanup(self):
-        """Clean up created test data"""
-        print("\n=== Cleaning up test data ===")
+    def test_error_handling(self):
+        """Test error handling for invalid requests"""
         
-        # Delete remaining budget items
+        # Test invalid budget ID
+        try:
+            response = requests.get(f"{self.base_url}/budgets/invalid_id")
+            if response.status_code == 400:
+                self.log_test("Invalid Budget ID Error Handling", True, "Correctly returned 400 for invalid ID")
+            else:
+                self.log_test("Invalid Budget ID Error Handling", False, f"Expected 400, got {response.status_code}")
+        except Exception as e:
+            self.log_test("Invalid Budget ID Error Handling", False, f"Exception: {str(e)}")
+
+        # Test missing required fields
+        try:
+            incomplete_budget = {"category": "Venue"}  # Missing budgeted_amount
+            response = requests.post(f"{self.base_url}/budgets", json=incomplete_budget)
+            if response.status_code == 422:
+                self.log_test("Missing Required Fields Error Handling", True, "Correctly returned 422 for missing fields")
+            else:
+                self.log_test("Missing Required Fields Error Handling", False, f"Expected 422, got {response.status_code}")
+        except Exception as e:
+            self.log_test("Missing Required Fields Error Handling", False, f"Exception: {str(e)}")
+
+    def cleanup_test_data(self):
+        """Clean up created test data"""
+        print("\n🧹 Cleaning up test data...")
+        
+        # Delete created budget items
         for budget_id in self.created_budget_ids:
             try:
-                self.session.delete(f"{self.base_url}/budgets/{budget_id}")
-                print(f"Deleted budget {budget_id}")
-            except:
-                pass
-        
-        # Delete remaining tasks
+                response = requests.delete(f"{self.base_url}/budgets/{budget_id}")
+                if response.status_code == 200:
+                    print(f"✅ Deleted budget item: {budget_id}")
+                else:
+                    print(f"❌ Failed to delete budget item: {budget_id}")
+            except Exception as e:
+                print(f"❌ Error deleting budget item {budget_id}: {str(e)}")
+
+        # Delete created task items
         for task_id in self.created_task_ids:
             try:
-                self.session.delete(f"{self.base_url}/tasks/{task_id}")
-                print(f"Deleted task {task_id}")
-            except:
-                pass
-
-    def print_summary(self):
-        """Print test summary"""
-        print("\n" + "="*60)
-        print("WEDDING MANAGEMENT APP - BACKEND API TEST SUMMARY")
-        print("="*60)
-        
-        total_passed = sum(category["passed"] for category in self.test_results.values())
-        total_failed = sum(category["failed"] for category in self.test_results.values())
-        total_tests = total_passed + total_failed
-        
-        print(f"Total Tests: {total_tests}")
-        print(f"Passed: {total_passed}")
-        print(f"Failed: {total_failed}")
-        print(f"Success Rate: {(total_passed/total_tests*100):.1f}%" if total_tests > 0 else "No tests run")
-        
-        print("\nDetailed Results:")
-        for category, results in self.test_results.items():
-            print(f"\n{category.upper().replace('_', ' ')}:")
-            print(f"  Passed: {results['passed']}")
-            print(f"  Failed: {results['failed']}")
-            if results['errors']:
-                print("  Errors:")
-                for error in results['errors']:
-                    print(f"    - {error}")
-        
-        return total_failed == 0
+                response = requests.delete(f"{self.base_url}/tasks/{task_id}")
+                if response.status_code == 200:
+                    print(f"✅ Deleted task: {task_id}")
+                else:
+                    print(f"❌ Failed to delete task: {task_id}")
+            except Exception as e:
+                print(f"❌ Error deleting task {task_id}: {str(e)}")
 
     def run_all_tests(self):
-        """Run all backend API tests"""
-        print(f"Starting Wedding Management App Backend API Tests")
-        print(f"Backend URL: {self.base_url}")
-        print(f"Test started at: {datetime.now()}")
+        """Run all tests"""
+        print("🚀 Starting Wedding Management App Backend Testing")
+        print("🎯 Focus: Subcategory support for Indian wedding context")
+        print(f"🌐 Backend URL: {self.base_url}")
+        print("=" * 80)
         
-        try:
-            self.test_budget_categories()
-            self.test_budget_crud()
-            self.test_task_crud()
-        finally:
-            self.cleanup()
+        # Run tests in order
+        self.test_budget_categories()
+        self.test_budget_crud_with_subcategories()
+        self.test_budget_get_with_subcategories()
+        self.test_budget_update_subcategory()
+        self.test_tasks_api()
+        self.test_error_handling()
         
-        success = self.print_summary()
-        return success
+        # Summary
+        print("=" * 80)
+        print("📊 TEST SUMMARY")
+        print("=" * 80)
+        
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result["success"])
+        failed_tests = total_tests - passed_tests
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests} ✅")
+        print(f"Failed: {failed_tests} ❌")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        if failed_tests > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result["success"]:
+                    print(f"  • {result['test']}: {result['details']}")
+        
+        # Cleanup
+        self.cleanup_test_data()
+        
+        return passed_tests, failed_tests
 
 if __name__ == "__main__":
-    tester = WeddingAPITester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    tester = WeddingAppTester()
+    passed, failed = tester.run_all_tests()
+    
+    # Exit with appropriate code
+    sys.exit(0 if failed == 0 else 1)

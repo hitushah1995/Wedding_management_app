@@ -20,6 +20,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 interface BudgetItem {
   id: string;
   category: string;
+  subcategory: string;
   budgeted_amount: number;
   spent_amount: number;
   notes: string;
@@ -33,6 +34,14 @@ interface BudgetSummary {
   items: BudgetItem[];
 }
 
+interface CategoryGroup {
+  category: string;
+  is_custom: boolean;
+  total_budgeted: number;
+  total_spent: number;
+  items: BudgetItem[];
+}
+
 export default function BudgetScreen() {
   const [budgetData, setBudgetData] = useState<BudgetSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,9 +49,11 @@ export default function BudgetScreen() {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   const [predefinedCategories, setPredefinedCategories] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     category: '',
+    subcategory: '',
     budgeted_amount: '',
     spent_amount: '',
     notes: '',
@@ -98,6 +109,7 @@ export default function BudgetScreen() {
         },
         body: JSON.stringify({
           category: formData.category,
+          subcategory: formData.subcategory,
           budgeted_amount: parseFloat(formData.budgeted_amount) || 0,
           spent_amount: parseFloat(formData.spent_amount) || 0,
           notes: formData.notes,
@@ -154,6 +166,7 @@ export default function BudgetScreen() {
     setEditingItem(item);
     setFormData({
       category: item.category,
+      subcategory: item.subcategory || '',
       budgeted_amount: item.budgeted_amount.toString(),
       spent_amount: item.spent_amount.toString(),
       notes: item.notes,
@@ -165,6 +178,7 @@ export default function BudgetScreen() {
   const resetForm = () => {
     setFormData({
       category: '',
+      subcategory: '',
       budgeted_amount: '',
       spent_amount: '',
       notes: '',
@@ -188,6 +202,44 @@ export default function BudgetScreen() {
         }
       }
     );
+  };
+
+  const toggleCategory = (category: string) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(category)) {
+      newExpanded.delete(category);
+    } else {
+      newExpanded.add(category);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
+  const groupByCategory = (): CategoryGroup[] => {
+    if (!budgetData?.items) return [];
+
+    const groups: { [key: string]: CategoryGroup } = {};
+
+    budgetData.items.forEach((item) => {
+      if (!groups[item.category]) {
+        groups[item.category] = {
+          category: item.category,
+          is_custom: item.is_custom,
+          total_budgeted: 0,
+          total_spent: 0,
+          items: [],
+        };
+      }
+
+      groups[item.category].total_budgeted += item.budgeted_amount;
+      groups[item.category].total_spent += item.spent_amount;
+      groups[item.category].items.push(item);
+    });
+
+    return Object.values(groups);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   };
 
   const renderProgressBar = (spent: number, budgeted: number) => {
@@ -217,6 +269,8 @@ export default function BudgetScreen() {
     );
   }
 
+  const categoryGroups = groupByCategory();
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView style={styles.scrollView}>
@@ -226,12 +280,12 @@ export default function BudgetScreen() {
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Total Budget</Text>
-              <Text style={styles.summaryAmount}>${budgetData?.total_budgeted.toFixed(2) || '0.00'}</Text>
+              <Text style={styles.summaryAmount}>{formatCurrency(budgetData?.total_budgeted || 0)}</Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Spent</Text>
               <Text style={[styles.summaryAmount, styles.spentAmount]}>
-                ${budgetData?.total_spent.toFixed(2) || '0.00'}
+                {formatCurrency(budgetData?.total_spent || 0)}
               </Text>
             </View>
           </View>
@@ -241,50 +295,90 @@ export default function BudgetScreen() {
               styles.remainingAmount,
               (budgetData?.remaining || 0) < 0 && styles.overBudget
             ]}>
-              ${budgetData?.remaining.toFixed(2) || '0.00'}
+              {formatCurrency(budgetData?.remaining || 0)}
             </Text>
           </View>
           {renderProgressBar(budgetData?.total_spent || 0, budgetData?.total_budgeted || 0)}
         </View>
 
-        {/* Budget Items */}
+        {/* Budget Categories */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Budget Items</Text>
-          {budgetData?.items && budgetData.items.length > 0 ? (
-            budgetData.items.map((item) => (
-              <View key={item.id} style={styles.budgetItem}>
-                <View style={styles.budgetItemHeader}>
-                  <View style={styles.budgetItemTitleRow}>
-                    <Ionicons name="pricetag" size={20} color="#FF69B4" />
-                    <Text style={styles.budgetItemTitle}>{item.category}</Text>
-                    {item.is_custom && (
-                      <View style={styles.customBadge}>
-                        <Text style={styles.customBadgeText}>Custom</Text>
+          <Text style={styles.sectionTitle}>Budget Categories</Text>
+          {categoryGroups.length > 0 ? (
+            categoryGroups.map((group) => (
+              <View key={group.category} style={styles.categoryCard}>
+                <TouchableOpacity
+                  style={styles.categoryHeader}
+                  onPress={() => toggleCategory(group.category)}
+                >
+                  <View style={styles.categoryHeaderLeft}>
+                    <Ionicons 
+                      name={expandedCategories.has(group.category) ? 'chevron-down' : 'chevron-forward'} 
+                      size={24} 
+                      color="#FF69B4" 
+                    />
+                    <View>
+                      <View style={styles.categoryTitleRow}>
+                        <Text style={styles.categoryTitle}>{group.category}</Text>
+                        {group.is_custom && (
+                          <View style={styles.customBadge}>
+                            <Text style={styles.customBadgeText}>Custom</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
+                      <Text style={styles.categorySubtitle}>
+                        {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.budgetItemActions}>
-                    <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconButton}>
-                      <Ionicons name="pencil" size={20} color="#FF69B4" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.iconButton}>
-                      <Ionicons name="trash" size={20} color="#FF6B6B" />
-                    </TouchableOpacity>
+                  <View style={styles.categoryHeaderRight}>
+                    <Text style={styles.categoryBudget}>{formatCurrency(group.total_budgeted)}</Text>
+                    <Text style={styles.categorySpent}>{formatCurrency(group.total_spent)}</Text>
                   </View>
-                </View>
-                <View style={styles.budgetItemAmounts}>
-                  <Text style={styles.budgetItemLabel}>Budgeted: ${item.budgeted_amount.toFixed(2)}</Text>
-                  <Text style={styles.budgetItemLabel}>Spent: ${item.spent_amount.toFixed(2)}</Text>
-                </View>
-                {renderProgressBar(item.spent_amount, item.budgeted_amount)}
-                {item.notes ? <Text style={styles.budgetItemNotes}>{item.notes}</Text> : null}
+                </TouchableOpacity>
+                {renderProgressBar(group.total_spent, group.total_budgeted)}
+
+                {expandedCategories.has(group.category) && (
+                  <View style={styles.subcategoryContainer}>
+                    {group.items.map((item) => (
+                      <View key={item.id} style={styles.subcategoryItem}>
+                        <View style={styles.subcategoryContent}>
+                          <View style={styles.subcategoryHeader}>
+                            <Ionicons name="chevron-forward" size={16} color="#FFB6C1" />
+                            <Text style={styles.subcategoryTitle}>
+                              {item.subcategory || 'General'}
+                            </Text>
+                          </View>
+                          <View style={styles.subcategoryAmounts}>
+                            <Text style={styles.subcategoryLabel}>
+                              Budget: {formatCurrency(item.budgeted_amount)}
+                            </Text>
+                            <Text style={styles.subcategoryLabel}>
+                              Spent: {formatCurrency(item.spent_amount)}
+                            </Text>
+                          </View>
+                          {renderProgressBar(item.spent_amount, item.budgeted_amount)}
+                          {item.notes ? <Text style={styles.subcategoryNotes}>{item.notes}</Text> : null}
+                        </View>
+                        <View style={styles.subcategoryActions}>
+                          <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconButton}>
+                            <Ionicons name="pencil" size={18} color="#FF69B4" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.iconButton}>
+                            <Ionicons name="trash" size={18} color="#FF6B6B" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             ))
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="wallet-outline" size={64} color="#FFB6C1" />
               <Text style={styles.emptyStateText}>No budget items yet</Text>
-              <Text style={styles.emptyStateSubtext}>Tap the + button to add your first budget item</Text>
+              <Text style={styles.emptyStateSubtext}>Tap the + button to start planning your wedding budget</Text>
             </View>
           )}
         </View>
@@ -326,20 +420,28 @@ export default function BudgetScreen() {
                 <Ionicons name="chevron-down" size={20} color="#FF69B4" />
               </TouchableOpacity>
 
-              <Text style={styles.inputLabel}>Budgeted Amount *</Text>
+              <Text style={styles.inputLabel}>Subcategory (Optional)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
+                placeholder="e.g., Father's Sherwani, Sangeet Function"
+                value={formData.subcategory}
+                onChangeText={(text) => setFormData({ ...formData, subcategory: text })}
+              />
+
+              <Text style={styles.inputLabel}>Budgeted Amount (₹) *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0"
+                keyboardType="numeric"
                 value={formData.budgeted_amount}
                 onChangeText={(text) => setFormData({ ...formData, budgeted_amount: text })}
               />
 
-              <Text style={styles.inputLabel}>Spent Amount</Text>
+              <Text style={styles.inputLabel}>Spent Amount (₹)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
+                placeholder="0"
+                keyboardType="numeric"
                 value={formData.spent_amount}
                 onChangeText={(text) => setFormData({ ...formData, spent_amount: text })}
               />
@@ -449,7 +551,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   summaryAmount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -471,7 +573,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   remainingAmount: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#4CAF50',
   },
@@ -490,6 +592,7 @@ const styles = StyleSheet.create({
   },
   section: {
     padding: 16,
+    paddingTop: 0,
   },
   sectionTitle: {
     fontSize: 18,
@@ -497,9 +600,8 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
-  budgetItem: {
+  categoryCard: {
     backgroundColor: '#FFF',
-    padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
@@ -507,57 +609,108 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    overflow: 'hidden',
   },
-  budgetItemHeader: {
+  categoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: 16,
+    paddingBottom: 12,
   },
-  budgetItemTitleRow: {
+  categoryHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 12,
   },
-  budgetItemTitle: {
-    fontSize: 16,
+  categoryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryTitle: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginLeft: 8,
+  },
+  categorySubtitle: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  categoryHeaderRight: {
+    alignItems: 'flex-end',
+  },
+  categoryBudget: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  categorySpent: {
+    fontSize: 14,
+    color: '#FF69B4',
+    marginTop: 2,
   },
   customBadge: {
     backgroundColor: '#FFE4E1',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
-    marginLeft: 8,
   },
   customBadgeText: {
     fontSize: 10,
     color: '#FF69B4',
     fontWeight: '600',
   },
-  budgetItemActions: {
+  subcategoryContainer: {
+    backgroundColor: '#FFF5F7',
+    paddingTop: 8,
+  },
+  subcategoryItem: {
     flexDirection: 'row',
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#FFE4E1',
   },
-  iconButton: {
-    padding: 4,
+  subcategoryContent: {
+    flex: 1,
   },
-  budgetItemAmounts: {
+  subcategoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 4,
+  },
+  subcategoryTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#333',
+  },
+  subcategoryAmounts: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  budgetItemLabel: {
-    fontSize: 14,
+  subcategoryLabel: {
+    fontSize: 13,
     color: '#666',
   },
-  budgetItemNotes: {
+  subcategoryNotes: {
     fontSize: 12,
     color: '#999',
     fontStyle: 'italic',
-    marginTop: 8,
+    marginTop: 4,
+  },
+  subcategoryActions: {
+    flexDirection: 'column',
+    gap: 8,
+    marginLeft: 12,
+    justifyContent: 'center',
+  },
+  iconButton: {
+    padding: 4,
   },
   emptyState: {
     alignItems: 'center',
@@ -575,6 +728,7 @@ const styles = StyleSheet.create({
     color: '#CCC',
     marginTop: 8,
     textAlign: 'center',
+    paddingHorizontal: 32,
   },
   fab: {
     position: 'absolute',
