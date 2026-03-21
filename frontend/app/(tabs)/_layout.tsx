@@ -16,7 +16,7 @@ export default function TabLayout() {
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '600',
         },
         headerStyle: {
@@ -44,6 +44,15 @@ export default function TabLayout() {
           title: 'Tasks',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="checkbox-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="family"
+        options={{
+          title: 'Family',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
           ),
         }}
       />
